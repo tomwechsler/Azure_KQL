@@ -1,0 +1,77 @@
+Event
+
+Event 
+| search "error"
+
+search in (Event) "error"
+
+Event
+| where EventLevelName == "Error"
+
+Event 
+| where EventLevelName == "Error" 
+| where TimeGenerated > ago(1d) 
+| summarize count() by Source
+
+// List heartbeats
+// List all computer heartbeats from the last hour
+Heartbeat 
+| where TimeGenerated > ago(1h)
+
+// Last heartbeat of each computer
+// Show the last heartbeat sent by each computer
+Heartbeat 
+| summarize arg_max(TimeGenerated, *) by Computer
+
+// Computers availability today
+// Chart the number of computers sending logs, each hour
+Heartbeat 
+| summarize dcount(ComputerIP) by bin(TimeGenerated, 1h)    
+| render timechart
+
+// Availability rate
+// Calculate the availability rate of each connected computer
+Heartbeat
+// bin_at is used to set the time grain to 1 hour, starting exactly 24 hours ago
+| summarize heartbeatPerHour = count() by bin_at(TimeGenerated, 1h, ago(24h)), Computer
+| extend availablePerHour = iff(heartbeatPerHour > 0, true, false)
+| summarize totalAvailableHours = countif(availablePerHour == true) by Computer 
+| extend availabilityRate = totalAvailableHours*100.0/24
+
+// What data is being collected?
+// List the collected performance counters and object types (Process, Memory, Processor..)
+Perf 
+| summarize by ObjectName, CounterName
+
+// Memory and CPU usage
+// Chart all computers' used memory and CPU, over the last hour
+Perf
+| where TimeGenerated > ago(1h)
+| where (CounterName == "% Processor Time" and InstanceName == "_Total") or CounterName == "% Used Memory" 
+| project TimeGenerated, CounterName, CounterValue 
+| summarize avg(CounterValue) by CounterName, bin(TimeGenerated, 1m)
+| render timechart
+
+// Top 10 computers with the highest disk space
+// Show the top 10 computers with the highest available disk space
+Perf
+| where CounterName == "Free Megabytes" and InstanceName == "_Total" 
+| summarize arg_max(TimeGenerated, *) by Computer
+| top 10 by CounterValue
+
+// Usage by data types
+// Chart the amount of logs reported for each data type, today
+Usage
+| summarize count_per_type=count() by DataType
+| sort by count_per_type desc
+| render piechart
+
+// Billable performance data
+// Calculate the volume of billable data (in GB) for Perf data, over the last day
+Usage 
+| where TimeGenerated > ago(1d) 
+| where IsBillable == true 
+| where DataType == "Perf" 
+| summarize TotalVolumeGB = sum(Quantity) / 1024
+
+
