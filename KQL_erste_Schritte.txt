@@ -1,0 +1,49 @@
+// Azure Activity operation statistics 
+// Statistics of operations over Azure Activity. 
+AzureActivity
+| summarize Count=count() by OperationName, _ResourceId
+| sort by Count desc nulls last
+
+
+
+// Azure Activity for user 
+// Show the user's activity over Azure Activity. 
+// Replace the UPN in the query with the UPN of the user of interest
+let v_Users_UPN= "tom@tomwechsler.ch";
+AzureActivity
+| where Caller == v_Users_UPN
+| project TimeGenerated, Caller, OperationName, ActivityStatus
+
+
+
+// Successful key enumaration 
+// Lists users who performed key enumeration, and their location. 
+AzureActivity
+| where OperationName == "List Storage Account Keys"
+| where ActivityStatus == "Succeeded"
+| project TimeGenerated, Caller, CallerIpAddress, OperationName
+
+
+
+// All SiginLogs events 
+// All Azure signin events. 
+SigninLogs
+| project UserDisplayName, Identity,UserPrincipalName,  AppDisplayName, AppId, ResourceDisplayName
+
+
+
+// Failed MFA challenge 
+// Highlights sign in failures caused by failed MFA challenge. 
+SigninLogs
+| where ResultType == 50074
+| project UserDisplayName, Identity,UserPrincipalName, ResultDescription,  AppDisplayName, AppId, ResourceDisplayName
+| summarize FailureCount=count(), FailedResources=dcount(ResourceDisplayName), ResultDescription=any(ResultDescription) by UserDisplayName
+
+
+
+// Failed Signin reasons 
+// The query list the main reasons for sign in failures. 
+SigninLogs
+| where ResultType != 0
+| summarize Count=count() by ResultDescription, ResultType
+| sort by Count desc nulls last
