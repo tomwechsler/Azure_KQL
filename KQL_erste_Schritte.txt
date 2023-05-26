@@ -5,7 +5,6 @@ AzureActivity
 | sort by Count desc nulls last
 
 
-
 // Azure Activity for user 
 // Show the user's activity over Azure Activity. 
 // Replace the UPN in the query with the UPN of the user of interest
@@ -15,14 +14,12 @@ AzureActivity
 | project TimeGenerated, Caller, OperationName, ActivityStatus
 
 
-
 // Successful key enumaration 
 // Lists users who performed key enumeration, and their location. 
 AzureActivity
 | where OperationName == "List Storage Account Keys"
 | where ActivityStatus == "Succeeded"
 | project TimeGenerated, Caller, CallerIpAddress, OperationName
-
 
 
 // All SiginLogs events 
@@ -40,10 +37,25 @@ SigninLogs
 | summarize FailureCount=count(), FailedResources=dcount(ResourceDisplayName), ResultDescription=any(ResultDescription) by UserDisplayName
 
 
-
 // Failed Signin reasons 
 // The query list the main reasons for sign in failures. 
 SigninLogs
 | where ResultType != 0
 | summarize Count=count() by ResultDescription, ResultType
 | sort by Count desc nulls last
+
+
+let lookback = 2d;
+SecurityEvent | where TimeGenerated >= ago(lookback)
+| where EventID == 4688 and Process =~ "powershell.exe"
+| extend PwshParam = trim(@"[^/\\]*powershell(.exe)+" , CommandLine)
+| project TimeGenerated, Computer, SubjectUserName, PwshParam
+| summarize min(TimeGenerated), count() by Computer, SubjectUserName, PwshParam
+| order by count_ desc nulls last
+ 
+
+DeviceEvents
+| where ingestion_time() > ago(1d)
+| where ActionType == "AntivirusDetection"
+| summarize (Timestamp, ReportId)=arg_max(Timestamp, ReportId), count() by DeviceId
+| where count_ > 5
